@@ -1,0 +1,1063 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Transcripteur local</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: bandeau fin, panneau "console" à gauche (source + réglages + progression), transcription lisible à droite */
+:root{
+  --bg:#eef0f3; --panel:#ffffff; --ink:#15181d; --muted:#5b6472; --line:#d5dae1;
+  --accent:#2b46c9; --accent-ink:#ffffff; --accent-soft:#e3e8fb; --wave:#9aa6ba; --wave-done:#2b46c9;
+  --ok:#1d7a4c; --warn:#a0620a; --err:#b3261e;
+  --s1:#2b46c9; --s2:#c2410c; --s3:#0f7a5a; --s4:#a21caf; --s5:#b45309; --s6:#0e7490; --s7:#be123c; --s8:#4d7c0f;
+  --f-display:"Familjen Grotesk",system-ui,sans-serif;
+  --f-body:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-read:"Source Serif 4",Georgia,serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#111419; --panel:#191d24; --ink:#e7eaf0; --muted:#98a1b0; --line:#2a303a;
+  --accent:#7f95ff; --accent-ink:#0b0f1c; --accent-soft:#1f2640; --wave:#4a5467; --wave-done:#7f95ff;
+  --ok:#5fcf97; --warn:#e2a64a; --err:#ff8a80;
+  --s1:#8ea2ff; --s2:#ff9a6b; --s3:#4fd1a5; --s4:#e58cf2; --s5:#f5b84a; --s6:#5ccfe6; --s7:#ff7f9b; --s8:#a6d95b;
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+.blocked{margin:0 0 18px;padding:14px 16px;border-radius:10px;border:1px solid var(--warn);background:var(--panel);display:flex;flex-direction:column;gap:4px}
+.blocked strong{font:700 1rem var(--f-display)}
+.blocked span{color:var(--muted);font-size:.9rem}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);padding-inline:16px;padding-block:0 40px;min-height:100vh}
+.wrap{max-width:1180px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:22px 18px}
+h1{font:700 1.45rem/1.1 var(--f-display);letter-spacing:-.01em;margin:0}
+h1 span{color:var(--muted);font-weight:500}
+.chip{font:600 .72rem/1 var(--f-mono);letter-spacing:.04em;text-transform:uppercase;padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);display:inline-flex;gap:7px;align-items:center}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.chip.gpu i{background:var(--ok)} .chip.cpu i{background:var(--warn)}
+main{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:860px){main{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.side{display:flex;flex-direction:column}
+.side section{padding:18px;display:flex;flex-direction:column;gap:12px}
+.side section+section{border-top:1px solid var(--line)}
+.label{font:600 .7rem/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:22px 16px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over,.drop:focus-visible{border-color:var(--accent);background:var(--accent-soft);outline:none}
+.drop strong{display:block;font:600 1rem var(--f-display)}
+.drop small{color:var(--muted)}
+.file{display:flex;flex-direction:column;gap:8px}
+.file .name{font-weight:600;overflow-wrap:anywhere}
+.file .meta{font:.8rem var(--f-mono);color:var(--muted)}
+canvas#wave{width:100%;height:56px;display:block;border-radius:6px;background:var(--bg);cursor:pointer}
+audio{width:100%;height:36px}
+.field{display:flex;flex-direction:column;gap:6px}
+.import{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+button.link{border:0;background:none;padding:2px 0;color:var(--accent);font-size:.85rem;text-decoration:underline;text-underline-offset:3px}
+.imp-info{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;font:.8rem var(--f-mono);color:var(--ink);background:var(--accent-soft);padding:6px 10px;border-radius:6px;max-width:100%}
+.imp-info span{overflow-wrap:anywhere}
+select,input[type=text]{font:inherit;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);width:100%}
+select:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{font-size:.8rem;color:var(--muted);margin:0}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+button{font:600 .9rem var(--f-body);padding:10px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);flex:1}
+.bar{height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.bar b{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+.status{font:.82rem/1.4 var(--f-mono);color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.err{color:var(--err);font-size:.88rem;margin:0}
+.warn{color:var(--warn);font-size:.85rem;margin:0}
+.doc{min-height:420px;display:flex;flex-direction:column}
+.doc-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:8px}
+.tabs button{border:0;background:transparent;padding:7px 12px;font-size:.85rem}
+.tabs button[aria-selected="true"]{background:var(--panel);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.actions button{padding:7px 11px;font-size:.82rem}
+/* bandeau des voix */
+.voices{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.voices-head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+.voice-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.voice{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:4px 8px 4px 10px;border:1px solid var(--line);border-radius:8px}
+.voice i{width:10px;height:10px;border-radius:50%}
+.voice input{border:0;padding:5px 2px;background:transparent;font-weight:600;min-width:0}
+.voice small{font:.75rem var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.body{padding:22px 26px 30px;min-width:0}
+.prose{font:1.08rem/1.7 var(--f-read);max-width:68ch;white-space:pre-wrap;overflow-wrap:anywhere}
+.turns{display:flex;flex-direction:column;gap:16px;max-width:70ch}
+.turn{display:flex;flex-direction:column;gap:2px}
+.who{font:700 .78rem/1.2 var(--f-display);letter-spacing:.06em;text-transform:uppercase}
+.turn p{margin:0;font:1.08rem/1.7 var(--f-read);overflow-wrap:anywhere}
+.segs{display:flex;flex-direction:column;gap:2px;max-width:84ch}
+.seg{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:12px;padding:6px 8px;border-radius:6px;align-items:start}
+.seg.nospk{grid-template-columns:auto minmax(0,1fr)}
+.seg.now{background:var(--accent-soft)}
+.seg .tc{font:.78rem/1.9 var(--f-mono);color:var(--accent);font-variant-numeric:tabular-nums;border:0;background:none;padding:0 2px;border-radius:4px}
+.seg .tc:hover{text-decoration:underline}
+.seg > .ed{font:1rem/1.6 var(--f-read)}
+.ed{border-radius:3px;outline:none;padding:0 1px;transition:background .12s}
+.ed:hover{background:var(--bg)}
+.ed:focus{background:var(--accent-soft);box-shadow:0 0 0 2px var(--accent-soft)}
+.resume{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 14px;margin:0 0 20px;border-radius:10px;background:var(--accent-soft);color:var(--ink)}
+.resume button{padding:7px 12px;font-size:.85rem}
+.edit-hint{font-size:.78rem;color:var(--muted)}
+.spk{font:700 .72rem/1 var(--f-display);letter-spacing:.05em;text-transform:uppercase;padding:5px 7px;margin-top:2px;border-radius:5px;border:1px solid currentColor;background:transparent;white-space:nowrap;width:11ch;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.spk:hover:not(:disabled){border-color:currentColor;background:var(--bg)}
+.seg select{font-size:.8rem;padding:4px 6px;width:auto;max-width:16ch}
+.live{color:var(--muted)}
+.live::after{content:"▍";animation:blink 1s steps(2) infinite;color:var(--accent)}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.live::after{animation:none}.bar b{transition:none}}
+.empty{color:var(--muted);max-width:52ch}
+.empty h2{font:700 1.2rem var(--f-display);color:var(--ink);margin:0 0 8px}
+.empty ol{padding-left:1.2em;margin:10px 0}
+.empty li{margin:4px 0}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:8px;font-size:.85rem;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Transcripteur <span>local</span></h1>
+    <span class="chip" id="devChip"><i></i><span id="devTxt">Détection…</span></span>
+  </header>
+
+  <div class="blocked" id="blocked" hidden>
+    <strong>Ouvre ce fichier dans ton navigateur</strong>
+    <span>L'aperçu intégré ne permet pas de faire tourner les modèles. Télécharge Transcripteur.html, puis ouvre-le dans Chrome ou Edge (double-clic sur le fichier, ou glisse-le dans une fenêtre du navigateur).</span>
+  </div>
+  <main>
+    <div class="panel side">
+      <section>
+        <span class="label">Fichier audio ou vidéo</span>
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choisir un fichier">
+          <strong>Dépose ton fichier ici</strong>
+          <small>ou clique pour parcourir · mp3, wav, m4a, ogg, flac, mp4, webm, mov</small>
+        </div>
+        <input type="file" id="fileIn" accept="audio/*,video/*,.m4a,.mov,.mkv" hidden>
+        <div class="file" id="fileBox" hidden>
+          <div class="name" id="fName"></div>
+          <div class="meta" id="fMeta"></div>
+          <canvas id="wave" aria-label="Forme d'onde, clique pour te déplacer"></canvas>
+          <audio id="player" controls preload="metadata"></audio>
+        </div>
+        <div class="import">
+          <button type="button" class="link" id="impBtn">Reprendre un transcript existant (.vtt, .srt)</button>
+          <input type="file" id="impIn" accept=".vtt,.srt,text/vtt" hidden>
+          <div class="imp-info" id="impInfo" hidden>
+            <span id="impTxt"></span>
+            <button type="button" class="link" id="impClear">Retirer</button>
+          </div>
+          <p class="hint" id="impHint" hidden></p>
+        </div>
+      </section>
+
+      <section>
+        <div class="field">
+          <label class="label" for="model">Modèle</label>
+          <select id="model">
+            <option value="onnx-community/whisper-large-v3-turbo">Précis · large-v3-turbo (~1,6 Go)</option>
+            <option value="onnx-community/whisper-small">Équilibré · small (~400 Mo)</option>
+            <option value="onnx-community/whisper-base">Rapide · base (~150 Mo)</option>
+          </select>
+          <p class="hint" id="modelHint">Téléchargé une seule fois, puis gardé en cache dans le navigateur.</p>
+        </div>
+        <div class="row">
+          <div class="field" style="flex:1;min-width:140px">
+            <label class="label" for="lang">Langue</label>
+            <select id="lang">
+              <option value="fr" selected>Français</option>
+              <option value="">Détection auto</option>
+              <option value="en">Anglais</option>
+              <option value="es">Espagnol</option>
+              <option value="pt">Portugais</option>
+              <option value="it">Italien</option>
+              <option value="de">Allemand</option>
+              <option value="nl">Néerlandais</option>
+              <option value="ca">Catalan</option>
+              <option value="ar">Arabe</option>
+              <option value="ja">Japonais</option>
+              <option value="zh">Chinois</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1;min-width:140px">
+            <label class="label" for="task">Sortie</label>
+            <select id="task">
+              <option value="transcribe">Transcription</option>
+              <option value="translate">Traduction en anglais</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="diar">Qui parle</label>
+          <select id="diar">
+            <option value="off">Ne pas identifier les voix</option>
+            <option value="auto" selected>Identifier les voix · nombre auto</option>
+            <option value="2">2 personnes</option>
+            <option value="3">3 personnes</option>
+            <option value="4">4 personnes</option>
+            <option value="5">5 personnes</option>
+            <option value="6">6 personnes</option>
+            <option value="7">7 personnes</option>
+            <option value="8">8 personnes</option>
+          </select>
+          <p class="hint">Si tu connais le nombre de personnes, indique-le : le regroupement des voix est plus fiable. Ajoute ~35 Mo au premier lancement.</p>
+        </div>
+      </section>
+
+      <section>
+        <div class="row">
+          <button class="primary" id="go" disabled>Transcrire</button>
+          <button id="stop" hidden>Arrêter</button>
+        </div>
+        <div id="prog" hidden>
+          <div class="status"><span id="stTxt"></span><span id="stNum"></span></div>
+          <div class="bar" style="margin-top:8px"><b id="barFill"></b></div>
+        </div>
+        <p class="err" id="err" hidden></p>
+        <p class="warn" id="warn" hidden></p>
+      </section>
+    </div>
+
+    <div class="panel doc">
+      <div class="doc-head">
+        <div class="tabs" role="tablist">
+          <button role="tab" id="tabText" aria-selected="true">Texte</button>
+          <button role="tab" id="tabSegs" aria-selected="false">Horodaté</button>
+        </div>
+        <span class="edit-hint" id="editHint" hidden>Clique dans le texte pour le corriger</span>
+        <div class="actions">
+          <button id="bCopy" disabled>Copier</button>
+          <button id="bTxt" disabled>.txt</button>
+          <button id="bSrt" disabled>.srt</button>
+          <button id="bVtt" disabled>.vtt</button>
+        </div>
+      </div>
+      <div class="voices" id="voices" hidden>
+        <div class="voices-head">
+          <span class="label">Voix détectées</span>
+          <span class="hint">Renomme chaque voix. Donne le même nom à deux voix pour les fusionner.</span>
+        </div>
+        <div class="voice-list" id="voiceList"></div>
+      </div>
+      <div class="body" id="out">
+        <div class="empty">
+          <div class="resume" id="resume" hidden><span></span><button type="button" id="resumeBtn">Reprendre</button></div>
+          <h2>Tout se passe sur ton ordinateur</h2>
+          <p>Whisper et la reconnaissance des voix tournent dans ton navigateur. Ton fichier n'est envoyé nulle part, rien n'est payant, pas de limite de durée.</p>
+          <ol>
+            <li>Dépose un fichier audio ou vidéo à gauche.</li>
+            <li>Choisis le modèle, la langue et, pour une réunion, le nombre de personnes.</li>
+            <li>Lance la transcription. La première fois, les modèles se téléchargent.</li>
+            <li>Renomme les voix (Voix 1 devient Camille…), puis récupère le texte ou des sous-titres .srt / .vtt.</li>
+          </ol>
+          <p>Tu as déjà un transcript en .vtt ou .srt ? Utilise « Reprendre un transcript existant » avec le fichier audio : seule l'identification des voix sera lancée.</p>
+          <p>Dans l'onglet Horodaté, clique sur une ligne pour réécouter le passage, et sur l'étiquette de voix pour corriger qui parle.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script id="workerSrc" type="text/plain">
+const SEG_ID = 'onnx-community/pyannote-segmentation-3.0';
+const EMB_ID = 'onnx-community/wespeaker-voxceleb-resnet34-LM';
+let T = null, pipe = null, pipeKey = null, devInfo = null, seg = null, emb = null;
+async function lib(url){
+  if (!T){ T = await import(url); T.env.allowLocalModels = false; }
+  return T;
+}
+async function detect(){
+  if (devInfo) return devInfo;
+  devInfo = { device:'wasm', f16:false };
+  try{
+    if (self.navigator && navigator.gpu){
+      const a = await navigator.gpu.requestAdapter({ powerPreference:'high-performance' });
+      if (a) devInfo = { device:'webgpu', f16: a.features.has('shader-f16') };
+    }
+  }catch(e){}
+  return devInfo;
+}
+const prog = (p) => { try{ postMessage({ type:'dl', p:{ status:p.status, name:p.name, file:p.file, loaded:p.loaded, total:p.total } }); }catch(_){} };
+
+/* ---------- reconnaissance des voix ---------- */
+async function loadDiar(){
+  if (seg && emb) return;
+  const o = { device:'wasm', dtype:'fp32', progress_callback:prog };
+  const [sp, sm, ep, em] = await Promise.all([
+    T.AutoProcessor.from_pretrained(SEG_ID, { progress_callback:prog }),
+    T.AutoModelForAudioFrameClassification.from_pretrained(SEG_ID, o),
+    T.AutoProcessor.from_pretrained(EMB_ID, { progress_callback:prog }),
+    T.AutoModel.from_pretrained(EMB_ID, o)
+  ]);
+  seg = { p:sp, m:sm }; emb = { p:ep, m:em };
+}
+async function embed(buf){
+  const out = await emb.m(await emb.p(buf));
+  const t = out.embeddings || out.last_hidden_state || Object.values(out)[0];
+  const v = Float32Array.from(t.data);
+  let n = 0; for (let i = 0; i < v.length; i++) n += v[i]*v[i];
+  n = Math.sqrt(n) || 1; for (let i = 0; i < v.length; i++) v[i] /= n;
+  return v;
+}
+// Regroupement hiérarchique par centroïdes (réglage de pyannote 3.1 pour ces empreintes vocales)
+function cluster(units, k){
+  const n = units.length; if (!n) return [];
+  const THR = 0.7045654963945799;
+  const C = units.map(u => ({ sum: Float64Array.from(u.v), cnt:1, dur:u.dur, alive:true }));
+  const lab = units.map((_, i) => i);
+  const dist = (a, b) => { const A = C[a], B = C[b]; let s = 0;
+    for (let i = 0; i < A.sum.length; i++){ const d = A.sum[i]/A.cnt - B.sum[i]/B.cnt; s += d*d; } return Math.sqrt(s); };
+  const D = new Float64Array(n*n);
+  for (let i = 0; i < n; i++) for (let j = i+1; j < n; j++) D[i*n+j] = dist(i, j);
+  const merge = (a, b) => {
+    for (let i = 0; i < C[a].sum.length; i++) C[a].sum[i] += C[b].sum[i];
+    C[a].cnt += C[b].cnt; C[a].dur += C[b].dur; C[b].alive = false;
+    for (let x = 0; x < n; x++) if (lab[x] === b) lab[x] = a;
+    for (let x = 0; x < n; x++) if (x !== a && C[x].alive){ const d = dist(a, x); if (x < a) D[x*n+a] = d; else D[a*n+x] = d; }
+  };
+  let alive = n;
+  while (alive > 1){
+    if (k && alive <= k) break;
+    let bi = -1, bj = -1, bd = Infinity;
+    for (let i = 0; i < n; i++){ if (!C[i].alive) continue;
+      for (let j = i+1; j < n; j++){ if (!C[j].alive) continue; const d = D[i*n+j]; if (d < bd){ bd = d; bi = i; bj = j; } } }
+    if (!k && bd >= THR) break;
+    merge(bi, bj); alive--;
+  }
+  if (!k){
+    // les toutes petites voix (quelques secondes) rejoignent la voix la plus proche
+    const ids = C.map((c, i) => i).filter(i => C[i].alive);
+    const big = ids.filter(i => C[i].dur >= 8);
+    if (big.length) for (const s of ids) if (C[s].dur < 8){
+      let b = big[0], bd = Infinity; for (const x of big){ const d = dist(s, x); if (d < bd){ bd = d; b = x; } }
+      merge(b, s);
+    }
+  }
+  return lab;
+}
+async function diarize(audio, k){
+  const SR = 16000, W = 10*SR, POW = [[],[0],[1],[2],[0,1],[0,2],[1,2]];
+  const nWin = Math.max(1, Math.ceil(audio.length / W));
+  const wins = [], units = [];
+  for (let w = 0; w < nWin; w++){
+    const a0 = w*W;
+    let a = audio.subarray(a0, Math.min(a0 + W, audio.length));
+    if (a.length < SR){ wins.push(null); postMessage({ type:'dstep', done:w+1, total:nWin }); continue; }
+    if (a.length < W){ const p = new Float32Array(W); p.set(a); a = p; }
+    const { logits } = await seg.m(await seg.p(a));
+    const F = logits.dims[1], Cn = logits.dims[2], d = logits.data;
+    const cls = new Uint8Array(F);
+    for (let f = 0; f < F; f++){ let best = 0, bv = -Infinity;
+      for (let c = 0; c < Cn; c++){ const v = d[f*Cn+c]; if (v > bv){ bv = v; best = c; } } cls[f] = best; }
+    const dt = W / SR / F, spf = W / F;
+    const win = { t0: a0/SR, dt, cls, units:[-1,-1,-1] };
+    for (let s = 0; s < 3; s++){
+      let cnt = 0; for (let f = 0; f < F; f++) if (cls[f] === s+1) cnt++;
+      if (cnt*dt < 0.8) continue;
+      const buf = new Float32Array(W); let o = 0;
+      for (let f = 0; f < F; f++) if (cls[f] === s+1){ const i0 = Math.floor(f*spf), i1 = Math.floor((f+1)*spf); buf.set(a.subarray(i0, i1), o); o += i1 - i0; }
+      win.units[s] = units.length;
+      units.push({ v: await embed(buf.slice(0, o)), dur: cnt*dt });
+    }
+    wins.push(win);
+    postMessage({ type:'dstep', done:w+1, total:nWin });
+  }
+  const lab = cluster(units, k);
+  const end = audio.length / SR, turns = [];
+  for (const win of wins){
+    if (!win) continue;
+    const F = win.cls.length;
+    for (let s = 0; s < 3; s++){
+      const u = win.units[s]; if (u < 0) continue;
+      const spk = lab[u]; let start = -1;
+      for (let f = 0; f <= F; f++){
+        const on = f < F && POW[win.cls[f]].includes(s);
+        if (on && start < 0) start = f;
+        if (!on && start >= 0){
+          const s0 = win.t0 + start*win.dt, s1 = Math.min(end, win.t0 + f*win.dt);
+          if (s1 > s0) turns.push({ s:s0, e:s1, spk });
+          start = -1;
+        }
+      }
+    }
+  }
+  turns.sort((x, y) => x.s - y.s);
+  return turns;
+}
+
+self.onmessage = async (e) => {
+  const m = e.data;
+  if (m.type === 'detect'){ postMessage({ type:'device', ...(await detect()) }); return; }
+  if (m.type === 'diarize'){ await runDiar(m); return; }
+  if (m.type !== 'run') return;
+  try{
+    const { pipeline, WhisperTextStreamer } = await lib(m.lib);
+    const dev = await detect();
+    const key = m.model + '|' + dev.device;
+    if (pipeKey !== key){
+      if (pipe){ try{ await pipe.dispose(); }catch(_){} pipe = null; pipeKey = null; }
+      postMessage({ type:'phase', phase:'load' });
+      const big = /large/.test(m.model);
+      const dtype = dev.device === 'webgpu'
+        ? { encoder_model: big ? (dev.f16 ? 'fp16' : 'q4') : 'fp32', decoder_model_merged: 'q4' }
+        : { encoder_model: 'q8', decoder_model_merged: 'q8' };
+      pipe = await pipeline('automatic-speech-recognition', m.model, { device: dev.device, dtype, progress_callback: prog });
+      pipeKey = key;
+    }
+    postMessage({ type:'phase', phase:'run' });
+    const fe = pipe.processor.feature_extractor.config;
+    const tp = fe.chunk_length / pipe.model.config.max_source_positions;
+    let done = 0;
+    const streamer = new WhisperTextStreamer(pipe.tokenizer, {
+      time_precision: tp, skip_prompt: true,
+      callback_function: (t) => postMessage({ type:'partial', text:t }),
+      on_finalize: () => { done++; postMessage({ type:'step', done }); }
+    });
+    const opts = { chunk_length_s:30, stride_length_s:5, return_timestamps:true, task:m.task, streamer };
+    if (m.language) opts.language = m.language;
+    const out = await pipe(m.audio, opts);
+    postMessage({ type:'result', diar: m.diar !== 'off', out:{ text: out.text, chunks: (out.chunks||[]).map(c => ({ timestamp:c.timestamp, text:c.text })) } });
+  }catch(err){
+    postMessage({ type:'error', message: String((err && err.message) || err) });
+    return;
+  }
+  if (m.diar === 'off') return;
+  await runDiar(m);
+};
+async function runDiar(m){
+  try{
+    if (!T) await lib(m.lib);
+    postMessage({ type:'phase', phase:'dload' });
+    await loadDiar();
+    postMessage({ type:'phase', phase:'diar' });
+    const turns = await diarize(m.audio, m.diar === 'auto' ? 0 : +m.diar);
+    postMessage({ type:'speakers', turns });
+  }catch(err){
+    postMessage({ type:'diarError', message: String((err && err.message) || err) });
+  }
+}
+</script>
+
+<script>
+(() => {
+  const LIB = new URLSearchParams(location.search).get('lib')
+    || 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js';
+  const SR = 16000, WIN = 30, STRIDE = 5, NCOL = 8;
+  const $ = (id) => document.getElementById(id);
+  const el = { drop:$('drop'), fileIn:$('fileIn'), fileBox:$('fileBox'), fName:$('fName'), fMeta:$('fMeta'),
+    wave:$('wave'), player:$('player'), model:$('model'), lang:$('lang'), task:$('task'), diar:$('diar'), go:$('go'), stop:$('stop'),
+    prog:$('prog'), stTxt:$('stTxt'), stNum:$('stNum'), bar:$('barFill'), err:$('err'), warn:$('warn'), out:$('out'),
+    tabText:$('tabText'), tabSegs:$('tabSegs'), bCopy:$('bCopy'), bTxt:$('bTxt'), bSrt:$('bSrt'), bVtt:$('bVtt'),
+    devChip:$('devChip'), devTxt:$('devTxt'), modelHint:$('modelHint'), toast:$('toast'), voices:$('voices'), voiceList:$('voiceList'),
+    impBtn:$('impBtn'), impIn:$('impIn'), impInfo:$('impInfo'), impTxt:$('impTxt'), impClear:$('impClear'), impHint:$('impHint'), editHint:$('editHint'), resume:$('resume') };
+  const exportBtns = [el.bCopy, el.bTxt, el.bSrt, el.bVtt];
+
+  let worker = null, file = null, peaks = null, duration = 0, result = null, view = 'text';
+  let imported = null, mode = 'full', tDiar0 = 0, prevSpk = null;
+  let running = false, totalSteps = 1, doneSteps = 0, t0 = 0, tTrans = 0, liveText = '', dl = {};
+
+  /* ---------- worker ---------- */
+  function makeWorker(){
+    const src = $('workerSrc').textContent;
+    const w = new Worker(URL.createObjectURL(new Blob([src], { type:'text/javascript' })));
+    w.onmessage = onMsg;
+    w.onerror = (e) => fail('Le moteur de transcription n\'a pas pu démarrer. ' + (e.message || ''));
+    return w;
+  }
+  let blocked = false;
+  try{
+    worker = makeWorker();
+    worker.postMessage({ type:'detect' });
+  }catch(e){
+    blocked = true;
+    $('blocked').hidden = false;
+    el.devTxt.textContent = 'Aperçu limité';
+    el.devChip.className = 'chip cpu';
+  }
+
+  function onMsg(e){
+    const m = e.data;
+    if (m.type === 'device'){
+      const gpu = m.device === 'webgpu';
+      el.devChip.className = 'chip ' + (gpu ? 'gpu' : 'cpu');
+      el.devTxt.textContent = gpu ? 'Carte graphique (WebGPU)' : 'Processeur seul';
+      if (!gpu){
+        el.model.value = 'onnx-community/whisper-small';
+        el.modelHint.textContent = 'WebGPU indisponible : calcul sur le processeur, plus lent. Le modèle Équilibré est conseillé. Pour utiliser la carte graphique, ouvre cette page dans Chrome ou Edge à jour.';
+      }
+    } else if (m.type === 'phase'){
+      dl = {};
+      if (m.phase === 'load') setStatus('Chargement du modèle…', '', 0);
+      if (m.phase === 'run'){ t0 = performance.now(); doneSteps = 0; setStatus('Transcription…', `0 / ${totalSteps}`, 0); renderLive(); }
+      if (m.phase === 'dload') setStatus('Chargement de la reconnaissance des voix…', '', 0);
+      if (m.phase === 'diar'){ t0 = performance.now(); tDiar0 = t0; setStatus('Identification des voix…', '', 0); }
+    } else if (m.type === 'dl'){
+      const p = m.p, k = (p.name || '') + '/' + (p.file || '');
+      if (p.file && p.total) dl[k] = { loaded: p.loaded || 0, total: p.total };
+      if (p.status === 'done' && dl[k]) dl[k].loaded = dl[k].total;
+      const files = Object.values(dl);
+      const L = files.reduce((a,f)=>a+f.loaded,0), T = files.reduce((a,f)=>a+f.total,0);
+      if (T > 0) setStatus('Téléchargement des modèles', `${mb(L)} / ${mb(T)}`, L/T);
+    } else if (m.type === 'partial'){
+      liveText += m.text; renderLive();
+    } else if (m.type === 'step'){
+      doneSteps = Math.min(m.done, totalSteps);
+      const s = (performance.now() - t0) / 1000;
+      const rest = doneSteps ? s / doneSteps * (totalSteps - doneSteps) : 0;
+      setStatus('Transcription…', `${doneSteps} / ${totalSteps} · reste ~${fmtDur(rest)}`, doneSteps / totalSteps);
+      drawWave();
+    } else if (m.type === 'result'){
+      tTrans = (performance.now() - t0) / 1000;
+      result = normalize(m.out);
+      doneSteps = totalSteps; drawWave();
+      exportBtns.forEach(b => b.disabled = false);
+      render();
+      if (!m.diar) finish();
+    } else if (m.type === 'dstep'){
+      const s = (performance.now() - t0) / 1000;
+      const rest = m.done ? s / m.done * (m.total - m.done) : 0;
+      setStatus('Identification des voix…', `${Math.round(m.done/m.total*100)} % · reste ~${fmtDur(rest)}`, m.done / m.total);
+    } else if (m.type === 'speakers'){
+      assignSpeakers(m.turns);
+      finish();
+    } else if (m.type === 'diarError'){
+      finish();
+      el.warn.textContent = 'Le texte est prêt, mais les voix n\'ont pas pu être identifiées. Détail : ' + m.message;
+      el.warn.hidden = false;
+    } else if (m.type === 'error'){
+      fail(explain(m.message));
+    }
+  }
+  function finish(){
+    running = false; setRunning(false);
+    const n = result && result.speakers ? groups().length : 0;
+    if (mode === 'voices') setStatus('Terminé', `voix identifiées en ${fmtDur((performance.now() - tDiar0) / 1000)}` + (n ? ` · ${n} voix` : ''), 1);
+    else setStatus('Terminé', `${fmtDur(tTrans)} pour ${fmtDur(duration)} d'audio` + (n ? ` · ${n} voix` : ''), 1);
+    render(); drawWave(); saveNow();
+  }
+
+  function explain(msg){
+    if (/fetch|network|Failed to load|404|Could not locate/i.test(msg))
+      return 'Téléchargement impossible (connexion ou fichier du modèle). Vérifie ta connexion puis réessaie. Détail : ' + msg;
+    if (/memory|OOM|allocation|device lost/i.test(msg))
+      return 'Mémoire insuffisante pour ce modèle. Essaie le modèle Équilibré ou Rapide. Détail : ' + msg;
+    return 'Erreur : ' + msg;
+  }
+  function fail(text){
+    running = false; setRunning(false);
+    el.err.textContent = text; el.err.hidden = false;
+    if (!result) el.out.innerHTML = '<div class="empty"><p>La transcription n\'a pas abouti.</p></div>';
+  }
+
+  /* ---------- fichier ---------- */
+  el.drop.addEventListener('click', () => el.fileIn.click());
+  el.drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); el.fileIn.click(); } });
+  el.fileIn.addEventListener('change', () => el.fileIn.files[0] && pick(el.fileIn.files[0]));
+  ['dragenter','dragover'].forEach(t => el.drop.addEventListener(t, (e) => { e.preventDefault(); el.drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(t => el.drop.addEventListener(t, (e) => { e.preventDefault(); el.drop.classList.remove('over'); }));
+  el.drop.addEventListener('drop', (e) => { e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f) pick(f); });
+  document.addEventListener('dragover', (e) => e.preventDefault());
+  document.addEventListener('drop', (e) => { e.preventDefault(); for (const f of (e.dataTransfer?.files || [])) if (!running) pick(f); });
+  const isSub = (f) => /\.(vtt|srt)$/i.test(f.name);
+  function pick(f){ if (isSub(f)) importFile(f); else load(f); }
+
+  async function decode(f){
+    const buf = await f.arrayBuffer();
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx({ sampleRate: SR });
+    try{
+      const ab = await ctx.decodeAudioData(buf);
+      if (ab.numberOfChannels === 1) return ab.getChannelData(0).slice();
+      const out = new Float32Array(ab.length);
+      for (let c = 0; c < ab.numberOfChannels; c++){ const d = ab.getChannelData(c); for (let i = 0; i < d.length; i++) out[i] += d[i]; }
+      for (let i = 0; i < out.length; i++) out[i] /= ab.numberOfChannels;
+      return out;
+    } finally { ctx.close(); }
+  }
+
+  async function load(f){
+    if (running) return;
+    el.err.hidden = true; el.warn.hidden = true;
+    const keep = imported ? result : null;
+    file = f; result = keep;
+    if (!keep){ el.voices.hidden = true; exportBtns.forEach(b => b.disabled = true); }
+    if (imported && !result) restoreImport();
+    el.fileBox.hidden = false;
+    el.fName.textContent = f.name;
+    el.fMeta.textContent = mb(f.size) + ' · lecture…';
+    if (el.player.src) URL.revokeObjectURL(el.player.src);
+    el.player.src = URL.createObjectURL(f);
+    el.go.disabled = true;
+    try{
+      const audio = await decode(f);
+      duration = audio.length / SR;
+      peaks = computePeaks(audio, 600);
+      totalSteps = steps(audio.length);
+      el.fMeta.textContent = `${mb(f.size)} · ${fmtClock(duration)}`;
+      doneSteps = imported ? totalSteps : 0; drawWave();
+      updateGo();
+    }catch(e){
+      el.fMeta.textContent = mb(f.size);
+      el.err.textContent = 'Impossible de lire l\'audio de ce fichier. Convertis-le en mp3 ou wav, ou essaie un autre format.';
+      el.err.hidden = false;
+    }
+  }
+
+  function steps(n){
+    const w = WIN*SR, j = (WIN - 2*STRIDE)*SR;
+    return n <= w ? 1 : 1 + Math.ceil((n - w) / j);
+  }
+
+  /* ---------- lancement ---------- */
+  el.go.addEventListener('click', async () => {
+    if (!file || running) return;
+    if (imported){
+      mode = 'voices';
+      running = true; setRunning(true);
+      el.err.hidden = true; el.warn.hidden = true;
+      prevSpk = { speakers: result.speakers, spks: result.chunks.map(c => c.spk) };
+      result.speakers = null; result.chunks.forEach(c => c.spk = null); render();
+      setStatus('Préparation de l\'audio…', '', 0);
+      let audio;
+      try{ audio = await decode(file); }catch(e){ fail('Impossible de lire l\'audio de ce fichier.'); return; }
+      const diar = el.diar.value === 'off' ? 'auto' : el.diar.value;
+      worker.postMessage({ type:'diarize', lib:LIB, audio, diar }, [audio.buffer]);
+      return;
+    }
+    mode = 'full';
+    running = true; setRunning(true);
+    el.err.hidden = true; el.warn.hidden = true; el.voices.hidden = true;
+    liveText = ''; result = null;
+    exportBtns.forEach(b => b.disabled = true);
+    setStatus('Préparation de l\'audio…', '', 0);
+    let audio;
+    try{ audio = await decode(file); }catch(e){ fail('Impossible de lire l\'audio de ce fichier.'); return; }
+    worker.postMessage({ type:'run', lib:LIB, audio, model:el.model.value, language:el.lang.value, task:el.task.value, diar:el.diar.value }, [audio.buffer]);
+  });
+  el.stop.addEventListener('click', () => {
+    if (worker) worker.terminate(); worker = makeWorker(); worker.postMessage({ type:'detect' });
+    running = false; setRunning(false);
+    if (imported && mode === 'voices'){
+      if (prevSpk){ result.speakers = prevSpk.speakers; result.chunks.forEach((c, i) => c.spk = prevSpk.spks[i]); }
+      setStatus('Arrêté', '', 0); render(); drawWave(); return;
+    }
+    if (result){ setStatus('Voix non identifiées (arrêté)', '', 1); render(); return; }
+    setStatus('Arrêté', '', 0);
+    if (liveText){ result = { chunks: [], text: liveText.trim() }; render(); el.bCopy.disabled = el.bTxt.disabled = false; }
+  });
+
+  function setRunning(on){
+    el.go.hidden = on; el.stop.hidden = !on;
+    el.model.disabled = el.lang.disabled = el.task.disabled = el.diar.disabled = on;
+    el.impBtn.disabled = el.impClear.disabled = on;
+    updateGo();
+    el.prog.hidden = false;
+  }
+  function setStatus(txt, num, frac){
+    el.prog.hidden = false; el.stTxt.textContent = txt; el.stNum.textContent = num;
+    el.bar.style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
+  }
+
+  /* ---------- reprise d'un transcript .vtt / .srt ---------- */
+  function parseTime(t){
+    const m = t.trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2})(?:[.,](\d{1,3}))?/);
+    if (!m) return null;
+    return (+(m[1] || 0))*3600 + (+m[2])*60 + (+m[3]) + (m[4] ? +m[4].padEnd(3, '0') / 1000 : 0);
+  }
+  function parseSubs(text){
+    const blocks = text.replace(/\r/g, '').replace(/^﻿/, '').split(/\n\s*\n/);
+    const cues = [];
+    for (const b of blocks){
+      const lines = b.split('\n');
+      const i = lines.findIndex(l => l.includes('-->'));
+      if (i < 0) continue;
+      const [a, z] = lines[i].split('-->');
+      const s = parseTime(a), e = parseTime(z);
+      if (s === null || e === null) continue;
+      let who = null;
+      const body = lines.slice(i + 1).map(l => {
+        const v = l.match(/<v(?:\.[^\s>]*)?\s+([^>]+)>/);
+        if (v && !who) who = v[1].trim();
+        return l.replace(/<[^>]+>/g, '').trim();
+      }).filter(Boolean).join(' ')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
+      if (body) cues.push({ s, e: Math.max(e, s), text: body, who });
+    }
+    return cues;
+  }
+  function restoreImport(){
+    const names = [];
+    const chunks = imported.cues.map(c => {
+      let spk = null;
+      if (c.who){ spk = names.indexOf(c.who); if (spk < 0){ names.push(c.who); spk = names.length - 1; } }
+      return { s:c.s, e:c.e, text:c.text, spk };
+    });
+    let speakers = null;
+    if (names.length){
+      chunks.forEach(c => { if (c.spk === null){ if (!names.includes('Voix ?')) names.push('Voix ?'); c.spk = names.indexOf('Voix ?'); } });
+      speakers = names.map(name => ({ name }));
+    }
+    result = { text: chunks.map(c => c.text).join(' '), chunks, speakers };
+    exportBtns.forEach(b => b.disabled = false);
+  }
+  async function importFile(f){
+    if (running) return;
+    el.err.hidden = true; el.warn.hidden = true;
+    let cues;
+    try{ cues = parseSubs(await f.text()); }catch(_){ cues = []; }
+    if (!cues.length){
+      el.err.textContent = 'Ce fichier ne contient aucune ligne horodatée lisible. Il faut un .vtt ou un .srt.';
+      el.err.hidden = false; return;
+    }
+    applyImport(f.name, cues);
+  }
+  function applyImport(name, cues){
+    imported = { name, cues };
+    if (!file) duration = cues[cues.length - 1].e;
+    restoreImport();
+    doneSteps = totalSteps;
+    el.impInfo.hidden = false;
+    const named = result.speakers ? ` · ${groups().length} voix nommées` : '';
+    el.impTxt.textContent = `${name} · ${cues.length} lignes · ${fmtClock(cues[cues.length - 1].e)}${named}`;
+    updateGo(); render(); drawWave();
+    el.prog.hidden = true;
+  }
+
+  /* ---------- sauvegarde automatique dans ce navigateur ---------- */
+  const STORE = 'transcripteur:dernier';
+  let saveT = 0;
+  function saveSoon(){ clearTimeout(saveT); saveT = setTimeout(saveNow, 700); }
+  function saveNow(){
+    if (!result || !result.chunks || !result.chunks.length) return;
+    const name = file ? file.name : (imported ? imported.name.replace(/ \(sauvegarde\)$/, '') : 'transcript');
+    try{ localStorage.setItem(STORE, JSON.stringify({ name, at: Date.now(),
+      chunks: result.chunks.map(c => ({ s:c.s, e:c.e, text:c.text, spk:c.spk })), speakers: result.speakers })); }catch(_){}
+  }
+  function loadSaved(){ try{ return JSON.parse(localStorage.getItem(STORE) || 'null'); }catch(_){ return null; } }
+  (function offerResume(){
+    const sv = loadSaved();
+    if (!sv || !sv.chunks || !sv.chunks.length || !el.resume) return;
+    const d = new Date(sv.at);
+    const when = d.toLocaleDateString('fr-FR', { day:'numeric', month:'long' }) + ' à ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+    el.resume.hidden = false;
+    el.resume.querySelector('span').textContent = `Dernier transcript : ${sv.name}, modifié le ${when}.`;
+    el.resume.querySelector('button').addEventListener('click', () => {
+      const cues = sv.chunks.map(c => ({ s:c.s, e:c.e, text:c.text, who: sv.speakers && sv.speakers[c.spk] ? sv.speakers[c.spk].name : null }));
+      applyImport(sv.name + ' (sauvegarde)', cues);
+    });
+  })();
+  el.impBtn.addEventListener('click', () => el.impIn.click());
+  el.impIn.addEventListener('change', () => { const f = el.impIn.files[0]; el.impIn.value = ''; if (f) importFile(f); });
+  el.impClear.addEventListener('click', () => {
+    imported = null; result = null; el.impInfo.hidden = true; el.voices.hidden = true;
+    exportBtns.forEach(b => b.disabled = true);
+    if (file) duration = Math.max(duration, 0);
+    doneSteps = 0; updateGo(); drawWave();
+    el.out.innerHTML = '<div class="empty"><p>Transcript retiré. Lance une transcription ou reprends un autre fichier .vtt / .srt.</p></div>';
+  });
+  function updateGo(){
+    el.go.textContent = imported ? 'Identifier les voix' : 'Transcrire';
+    el.go.disabled = blocked || running || !file;
+    el.impHint.hidden = !imported;
+    if (imported){
+      el.impHint.textContent = file
+        ? 'Seule l\'identification des voix sera lancée, sur le texte repris. Le modèle et la langue ne servent pas.'
+        : 'Ajoute maintenant le fichier audio ou vidéo de la réunion, pour que la page puisse écouter les voix.';
+    }
+  }
+
+  /* ---------- résultat ---------- */
+  function normalize(out){
+    const chunks = (out.chunks || []).map((c, i, arr) => {
+      let [s, e] = c.timestamp || [0, null];
+      s = s ?? (i ? arr[i-1].timestamp?.[1] ?? 0 : 0);
+      e = e ?? (arr[i+1]?.timestamp?.[0] ?? duration);
+      return { s, e: Math.max(e, s), text: (c.text || '').trim(), spk: null };
+    }).filter(c => c.text);
+    return { text: (out.text || '').trim(), chunks, speakers: null };
+  }
+
+  // Chaque segment de texte prend la voix qui parle le plus pendant sa durée
+  function assignSpeakers(turns){
+    if (!result || !turns.length) return;
+    for (const c of result.chunks){
+      const tally = new Map();
+      for (const t of turns){
+        if (t.s >= c.e) break;
+        const ov = Math.min(c.e, t.e) - Math.max(c.s, t.s);
+        if (ov > 0) tally.set(t.spk, (tally.get(t.spk) || 0) + ov);
+      }
+      let best = null, bv = 0;
+      tally.forEach((v, k) => { if (v > bv){ bv = v; best = k; } });
+      if (best === null){
+        let bd = Infinity;
+        for (const t of turns){ const d = Math.max(t.s - c.e, c.s - t.e, 0); if (d < bd){ bd = d; best = t.spk; } }
+      }
+      c.spk = best;
+    }
+    const order = new Map();
+    for (const c of result.chunks) if (c.spk !== null && !order.has(c.spk)) order.set(c.spk, order.size);
+    for (const c of result.chunks) c.spk = c.spk === null ? 0 : order.get(c.spk);
+    result.speakers = Array.from({ length: Math.max(1, order.size) }, (_, i) => ({ name: `Voix ${i+1}` }));
+  }
+
+  const hasSpk = () => !!(result && result.speakers && result.chunks.length);
+  const nameOf = (i) => (result.speakers[i]?.name || '').trim() || `Voix ${i+1}`;
+  const keyOf = (i) => nameOf(i).toLowerCase();
+  // voix regroupées par nom (deux voix au même nom = une seule personne)
+  function groups(){
+    const g = new Map();
+    result.speakers.forEach((_, i) => {
+      const k = keyOf(i);
+      if (!g.has(k)) g.set(k, { key:k, first:i, ids:[], dur:0 });
+      g.get(k).ids.push(i);
+    });
+    for (const c of result.chunks){ const x = g.get(keyOf(c.spk)); if (x) x.dur += c.e - c.s; }
+    return [...g.values()].filter(x => x.dur > 0 || result.speakers.length === 1);
+  }
+  const colorOf = (i) => {
+    const k = keyOf(i); const first = result.speakers.findIndex((_, j) => keyOf(j) === k);
+    return `var(--s${(first % NCOL) + 1})`;
+  };
+
+  const live = () => result.chunks.filter(c => c.text.trim());
+  // prises de parole : suites de segments d'une même voix, découpées en paragraphes aux silences
+  function turnsOf(){
+    const out = [];
+    let prev = null;
+    for (const c of result.chunks){
+      const last = out[out.length - 1];
+      const same = last && (!hasSpk() || keyOf(last.spk) === keyOf(c.spk));
+      if (!same) out.push({ spk:c.spk, s:c.s, paras:[[c]] });
+      else if (c.s - prev.e > 1.8) last.paras.push([c]);
+      else last.paras[last.paras.length - 1].push(c);
+      prev = c;
+    }
+    return out;
+  }
+  const paraText = (p) => p.map(c => c.text.trim()).filter(Boolean).join(' ');
+  function paragraphs(r){
+    if (!r.chunks.length) return r.text;
+    return turnsOf().flatMap(t => t.paras.map(paraText)).filter(Boolean).join('\n\n');
+  }
+  function plainText(){
+    if (!result.chunks.length) return result.text;
+    if (!hasSpk()) return paragraphs(result);
+    return turnsOf().map(t => `${nameOf(t.spk)} : ${t.paras.map(paraText).filter(Boolean).join('\n\n')}`)
+      .filter(s => !/ : $/.test(s)).join('\n\n');
+  }
+
+  function renderLive(){
+    el.out.innerHTML = '';
+    const d = document.createElement('div'); d.className = 'prose live';
+    d.textContent = liveText.trim() || 'Le texte va apparaître ici au fil de la transcription.';
+    el.out.appendChild(d);
+  }
+  function renderVoices(){
+    if (!hasSpk()){ el.voices.hidden = true; return; }
+    el.voices.hidden = false;
+    el.voiceList.innerHTML = '';
+    for (const g of groups()){
+      const row = document.createElement('label'); row.className = 'voice';
+      const dot = document.createElement('i'); dot.style.background = colorOf(g.first);
+      const inp = document.createElement('input'); inp.type = 'text'; inp.value = nameOf(g.first); inp.id = 'voice-' + g.first;
+      inp.setAttribute('aria-label', 'Nom de ' + nameOf(g.first));
+      const t = document.createElement('small'); t.textContent = fmtClock(g.dur);
+      inp.addEventListener('change', () => {
+        const v = inp.value.trim(); if (!v) { inp.value = nameOf(g.first); return; }
+        g.ids.forEach(i => result.speakers[i].name = v);
+        render(); drawWave(); saveSoon();
+      });
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); });
+      row.append(dot, inp, t);
+      el.voiceList.appendChild(row);
+    }
+  }
+  // un segment de texte modifiable sur place
+  function editable(c){
+    const s = document.createElement('span'); s.className = 'ed';
+    try{ s.contentEditable = 'plaintext-only'; }catch(_){ s.contentEditable = 'true'; }
+    if (s.contentEditable !== 'plaintext-only') s.contentEditable = 'true';
+    s.spellcheck = true;
+    s.textContent = c.text;
+    s.addEventListener('input', () => { c.text = s.textContent.replace(/\s+/g, ' '); saveSoon(); });
+    s.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape'){ e.preventDefault(); s.blur(); } });
+    s.addEventListener('paste', (e) => {
+      if (s.contentEditable === 'plaintext-only') return;
+      e.preventDefault(); const t = (e.clipboardData || window.clipboardData).getData('text').replace(/\s+/g, ' ');
+      document.execCommand('insertText', false, t);
+    });
+    s.addEventListener('blur', () => { c.text = c.text.trim(); });
+    return s;
+  }
+  function render(){
+    if (!result) return;
+    renderVoices();
+    el.editHint.hidden = !result.chunks.length;
+    el.out.innerHTML = '';
+    const spk = hasSpk();
+    if (!result.chunks.length){
+      const d = document.createElement('div'); d.className = 'prose';
+      d.textContent = result.text; el.out.appendChild(d); return;
+    }
+    if (view === 'text'){
+      const wrap = document.createElement('div'); wrap.className = 'turns';
+      for (const t of turnsOf()){
+        const b = document.createElement('div'); b.className = 'turn';
+        if (spk){
+          const w = document.createElement('span'); w.className = 'who'; w.style.color = colorOf(t.spk); w.textContent = nameOf(t.spk);
+          b.appendChild(w);
+        }
+        for (const para of t.paras){
+          const p = document.createElement('p');
+          para.forEach((c, i) => { if (i) p.appendChild(document.createTextNode(' ')); p.appendChild(editable(c)); });
+          b.appendChild(p);
+        }
+        wrap.appendChild(b);
+      }
+      el.out.appendChild(wrap);
+      return;
+    }
+    const list = document.createElement('div'); list.className = 'segs';
+    result.chunks.forEach((c, i) => {
+      const row = document.createElement('div'); row.className = 'seg' + (spk ? '' : ' nospk'); row.dataset.i = i;
+      const t = document.createElement('button'); t.className = 'tc'; t.textContent = fmtClock(c.s);
+      t.title = 'Écouter à partir d\'ici';
+      t.addEventListener('click', () => { el.player.currentTime = c.s; el.player.play().catch(()=>{}); });
+      row.appendChild(t);
+      if (spk){
+        const b = document.createElement('button'); b.className = 'spk'; b.style.color = colorOf(c.spk);
+        b.textContent = nameOf(c.spk); b.title = 'Changer la voix de cette ligne';
+        b.addEventListener('click', (e) => { e.stopPropagation(); pickSpeaker(b, c); });
+        row.appendChild(b);
+      }
+      row.appendChild(editable(c));
+      list.appendChild(row);
+    });
+    el.out.appendChild(list);
+  }
+  function pickSpeaker(btn, c){
+    const sel = document.createElement('select');
+    sel.setAttribute('aria-label', 'Qui parle sur cette ligne');
+    for (const g of groups()){
+      const o = document.createElement('option'); o.value = g.first; o.textContent = nameOf(g.first);
+      if (keyOf(c.spk) === g.key) o.selected = true; sel.appendChild(o);
+    }
+    const nw = document.createElement('option'); nw.value = 'new'; nw.textContent = '+ Nouvelle voix'; sel.appendChild(nw);
+    sel.addEventListener('click', (e) => e.stopPropagation());
+    const apply = () => {
+      if (sel.value === 'new'){ result.speakers.push({ name: `Voix ${result.speakers.length + 1}` }); c.spk = result.speakers.length - 1; }
+      else c.spk = +sel.value;
+      render(); drawWave(); saveSoon();
+    };
+    sel.addEventListener('change', apply);
+    sel.addEventListener('blur', () => { if (sel.isConnected) render(); });
+    btn.replaceWith(sel); sel.focus();
+  }
+  function setView(v){
+    view = v;
+    el.tabText.setAttribute('aria-selected', v === 'text'); el.tabSegs.setAttribute('aria-selected', v === 'segs');
+    if (result) render();
+  }
+  el.tabText.addEventListener('click', () => setView('text'));
+  el.tabSegs.addEventListener('click', () => setView('segs'));
+
+  el.player.addEventListener('timeupdate', () => {
+    drawWave();
+    if (!result || view !== 'segs') return;
+    const t = el.player.currentTime;
+    el.out.querySelectorAll('.seg').forEach(r => {
+      const c = result.chunks[+r.dataset.i];
+      r.classList.toggle('now', t >= c.s && t < c.e);
+    });
+  });
+
+  /* ---------- exports ---------- */
+  const base = () => (file ? file.name.replace(/\.[^.]+$/, '') : 'transcription');
+  function srtTime(t, sep){ const ms = Math.round(t*1000); const h = Math.floor(ms/3600000), m = Math.floor(ms/60000)%60, s = Math.floor(ms/1000)%60;
+    return `${pad(h)}:${pad(m)}:${pad(s)}${sep}${String(ms%1000).padStart(3,'0')}`; }
+  function toSrt(r){ return live().map((c,i) => `${i+1}\n${srtTime(c.s, ',')} --> ${srtTime(c.e, ',')}\n${hasSpk() ? nameOf(c.spk) + ' : ' : ''}${c.text}\n`).join('\n'); }
+  function toVtt(r){ return 'WEBVTT\n\n' + live().map(c => `${srtTime(c.s, '.')} --> ${srtTime(c.e, '.')}\n${hasSpk() ? '<v ' + nameOf(c.spk) + '>' : ''}${c.text}\n`).join('\n'); }
+  function save(name, text, type){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: type + ';charset=utf-8' }));
+    a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  el.bTxt.addEventListener('click', () => save(base() + '.txt', plainText() + '\n', 'text/plain'));
+  el.bSrt.addEventListener('click', () => save(base() + '.srt', toSrt(result), 'application/x-subrip'));
+  el.bVtt.addEventListener('click', () => save(base() + '.vtt', toVtt(result), 'text/vtt'));
+  el.bCopy.addEventListener('click', async () => {
+    const text = view === 'segs' && result.chunks.length
+      ? live().map(c => `[${fmtClock(c.s)}] ${hasSpk() ? nameOf(c.spk) + ' : ' : ''}${c.text}`).join('\n') : plainText();
+    try{ await navigator.clipboard.writeText(text); toast('Copié'); }
+    catch(_){ const r = document.createRange(); r.selectNodeContents(el.out); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Texte sélectionné, fais Ctrl+C'); }
+  });
+  function toast(t){ el.toast.textContent = t; el.toast.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => el.toast.classList.remove('show'), 1600); }
+
+  /* ---------- forme d'onde ---------- */
+  function computePeaks(a, n){
+    const out = new Float32Array(n), step = Math.max(1, Math.floor(a.length / n));
+    for (let i = 0; i < n; i++){ let m = 0; const e = Math.min(a.length, (i+1)*step); for (let j = i*step; j < e; j += 4){ const v = Math.abs(a[j]); if (v > m) m = v; } out[i] = m; }
+    let mx = 0; for (let i = 0; i < n; i++) if (out[i] > mx) mx = out[i];
+    mx = mx || 1; for (let i = 0; i < n; i++) out[i] /= mx;
+    return out;
+  }
+  function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function drawWave(){
+    if (!peaks) return;
+    const c = el.wave, dpr = devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+    if (!w) return;
+    c.width = w*dpr; c.height = h*dpr;
+    const g = c.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0,0,w,h);
+    const doneT = running || result ? Math.min(duration, doneSteps >= totalSteps ? duration : doneSteps * (WIN - 2*STRIDE)) : 0;
+    const bars = Math.floor(w / 3), cw = css('--wave'), cd = css('--wave-done');
+    const spk = hasSpk() ? result.chunks : null;
+    const pal = spk ? Array.from({ length: NCOL }, (_, i) => css(`--s${i+1}`)) : null;
+    let ci = 0;
+    for (let i = 0; i < bars; i++){
+      const t = i / bars * duration;
+      const p = peaks[Math.floor(i / bars * peaks.length)], bh = Math.max(1.5, p * (h - 8));
+      let col = t < doneT ? cd : cw;
+      if (spk){
+        while (ci < spk.length - 1 && spk[ci].e <= t) ci++;
+        const ch = spk[ci];
+        if (ch && t >= ch.s - 0.5 && t <= ch.e + 0.5){
+          const k = keyOf(ch.spk), first = result.speakers.findIndex((_, j) => keyOf(j) === k);
+          col = pal[first % NCOL];
+        } else col = cw;
+      }
+      g.fillStyle = col;
+      g.fillRect(i*3, (h - bh)/2, 2, bh);
+    }
+    if (duration && el.player.currentTime){
+      const x = el.player.currentTime / duration * w; g.fillStyle = css('--ink'); g.fillRect(x, 0, 1.5, h);
+    }
+  }
+  el.wave.addEventListener('click', (e) => {
+    if (!duration) return; const r = el.wave.getBoundingClientRect();
+    el.player.currentTime = (e.clientX - r.left) / r.width * duration;
+  });
+  addEventListener('resize', drawWave);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', drawWave);
+
+  /* ---------- utilitaires ---------- */
+  function pad(n){ return String(n).padStart(2, '0'); }
+  function fmtClock(t){ t = Math.max(0, Math.floor(t)); const h = Math.floor(t/3600), m = Math.floor(t/60)%60, s = t%60; return (h ? h + ':' : '') + pad(m) + ':' + pad(s); }
+  function fmtDur(t){ t = Math.round(t); if (t < 60) return t + ' s'; const m = Math.floor(t/60), s = t%60; if (m < 60) return `${m} min ${pad(s)}`; return `${Math.floor(m/60)} h ${pad(m%60)}`; }
+  function mb(b){ return b >= 1e9 ? (b/1e9).toFixed(2).replace('.', ',') + ' Go' : Math.round(b/1e6) + ' Mo'; }
+})();
+</script>
+</body>
+</html>
